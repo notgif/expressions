@@ -1,0 +1,36 @@
+import re
+from typing import NamedTuple
+
+class Token(NamedTuple):
+    kind: str
+    value: str
+    line: int
+    col: int
+
+token_patterns = {
+    'NUMBER': r'-?\d+(\.\d*)?',
+    'TERM': r'[a-zA-Z]+[a-zA-Z0-9_]*',
+    'OPERATOR': r'[\^*/%+\-]',
+    'PARENTHESIS': r'[(){}\[\]]',
+    'NEWLINE': r'\n',
+    'SKIP': r'\s',
+    'OTHER': r'.'
+}
+
+tokenizer_pat = '|'.join(r"(?P<{}>{})".format(key, token_patterns[key]) for key in token_patterns)
+
+def tokenize_str(string, line=1):
+
+    for tok in re.finditer(tokenizer_pat, string):
+        kind = tok.lastgroup
+        value = tok.group()
+        col = tok.start()
+
+        if kind == "NEWLINE":
+            line += 1
+            continue
+
+        if kind == "SKIP":
+            continue
+
+        yield Token(kind, value, line, col)
