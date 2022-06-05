@@ -11,6 +11,11 @@ class Number(NamedTuple):
     symbol: str
     token: Token
 
+    @classmethod
+    def from_token(cls, tok):
+        # Todo: handle other types of numeric literal
+        return cls(int(tok.value), tok.value, tok)
+
 class Paren(NamedTuple):
     symbol: str
     token: Token
@@ -32,6 +37,11 @@ class Symbol(NamedTuple):
     symbol: str
     value: any
     token: Token
+
+    @classmethod
+    def from_token(cls, tok):
+        string = f"{tok.value} := "
+        return cls(tok.value, lambda: int(input(string)), tok)
 
 def pow_op(a: Number, b: Number):
     return Number(a.value ** b.value, f"({a.symbol} ^ {b.symbol})", None)
@@ -74,11 +84,10 @@ def parse(tokens):
     stack = []
 
     for tok in tokens:
-#         raise(TokenError("errr", tok))
 
         match tok:
             case Token(kind="NUMBER"):
-                output.append(Number(int(tok.value), tok.value, tok))
+                output.append(Number.from_token(tok))
 
             case Token(kind="PARENTHESIS", value="("):
                 stack.append(Paren(tok.value, tok))
@@ -115,9 +124,7 @@ def parse(tokens):
                     output.append(names[tok.value])
 
                 else:
-                    string = f"{tok.value} := "
-                    print(string)
-                    names[tok.value] = Symbol(tok.value, lambda: (breakpoint(), int(input(string))), tok)
+                    names[tok.value] = Symbol.from_token(tok)
                     output.append(names[tok.value])
 
     while len(stack) > 0:
@@ -143,7 +150,8 @@ def evaluate_expr(parsed_expr):
                     stack.append(local_names[sym.symbol])
 
                 else:
-                    local_names[sym.symbol] = Symbol(sym.symbol, sym.value(), sym.token)
+                    val = sym.value()
+                    local_names[sym.symbol] = Symbol(f"{sym.symbol}:{val}", val, sym.token)
                     stack.append(local_names[sym.symbol])
 
             case Operator():
@@ -162,10 +170,11 @@ def evaluate_expr(parsed_expr):
     print(f"Result: {stack[-1].symbol} = {stack[-1].value}")
 
 if __name__ == "__main__":
-    input_str = "Log((z^3 + 2*z^2 + 3)/((z - 1)^2))"
+    input_str = "Log((z^3 + 2*x^2 + 3)/((z - 1)^2))"
     print(f"Expression: {input_str}")
     tokens = tokenize_str(input_str)
     rpn_expr = parse(tokens)
 
     while True:
         evaluate_expr(rpn_expr)
+r
