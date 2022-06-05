@@ -4,57 +4,64 @@ import math
 import operator as op
 
 from tokenizer import *
+from exceptions import *
 
 class Number(NamedTuple):
     value: any
     symbol: str
+    token: Token
 
 class Paren(NamedTuple):
     symbol: str
+    token: Token
 
 class Operator(NamedTuple):
     symbol: str
     prec: int
     assc: str
     function: callable
+    token: Token
 
 class Function(NamedTuple):
     symbol: str
     args: int
     function: callable
+    token: Token
 
 class Symbol(NamedTuple):
     symbol: str
     value: any
+    token: Token
 
 def pow_op(a: Number, b: Number):
-    return Number(a.value ** b.value, f"({a.symbol} ^ {b.symbol})")
+    return Number(a.value ** b.value, f"({a.symbol} ^ {b.symbol})", None)
 
 def mul_op(a: Number, b: Number):
-    return Number(a.value * b.value, f"({a.symbol} * {b.symbol})")
+    return Number(a.value * b.value, f"({a.symbol} * {b.symbol})", None)
 
 def div_op(a: Number, b: Number):
-    return Number(a.value / float(b.value), f"({a.symbol} / {b.symbol})")
+    return Number(a.value / float(b.value), f"({a.symbol} / {b.symbol})", None)
 
 def add_op(a: Number, b: Number):
-    return Number(a.value + b.value, f"({a.symbol} + {b.symbol})")
+    return Number(a.value + b.value, f"({a.symbol} + {b.symbol})", None)
 
 def sub_op(a: Number, b: Number):
-    return Number(a.value - b.value, f"({a.symbol} - {b.symbol})")
+    return Number(a.value - b.value, f"({a.symbol} - {b.symbol})", None)
 
 def log_fn(a: Number):
-    return Number( math.log(a.value), f"Log({a.symbol})" )
+    return Number( math.log(a.value), f"Log({a.symbol})", None)
 
+# Thunks for creating operator symbols with a token
 ops = {
-    "^": Operator("^", 4, "Right", pow_op),
-    "*": Operator("*", 3, "Left", mul_op),
-    "/": Operator("/", 3, "Left", div_op),
-    "+": Operator("+", 2, "Left", add_op),
-    "-": Operator("-", 2, "Left", sub_op)
+    "^": lambda tok: Operator("^", 4, "Right", pow_op, tok),
+    "*": lambda tok: Operator("*", 3, "Left", mul_op, tok),
+    "/": lambda tok: Operator("/", 3, "Left", div_op, tok),
+    "+": lambda tok: Operator("+", 2, "Left", add_op, tok),
+    "-": lambda tok: Operator("-", 2, "Left", sub_op, tok)
 }
 
 functions = {
-    "Log": Function("Log", 1, log_fn)
+    "Log": lambda tok: Function("Log", 1, log_fn, tok)
 }
 
 names = {}
@@ -67,22 +74,26 @@ def parse(tokens):
     stack = []
 
     for tok in tokens:
+#         raise(TokenError("errr", tok))
+
         match tok:
             case Token(kind="NUMBER"):
-                output.append(Number(int(tok.value), tok.value))
+                output.append(Number(int(tok.value), tok.value, tok))
 
             case Token(kind="PARENTHESIS", value="("):
-                stack.append(Paren(tok.value))
+                stack.append(Paren(tok.value, tok))
 
             case Token(kind="PARENTHESIS", value=")"):
                 while stack[-1].symbol != "(":
                     output.append(stack.pop())
 
-                assert(stack[-1].symbol == "(")
+                if not stack[-1].symbol == "(":
+                    raise TokenError("Mismatched Parenthesis", tok)
+
                 stack.pop()
 
             case Token(kind="OPERATOR"):
-                op = ops[tok.value]
+                op = ops[tok.value](tok)
 
                 if len(stack) == 0:
                     stack.append(op)
@@ -98,18 +109,21 @@ def parse(tokens):
 
             case Token(kind="TERM"):
                 if tok.value in functions:
-                    stack.append(functions[tok.value])
+                    stack.append(functions[tok.value](tok))
 
                 elif tok.value in names:
                     output.append(names[tok.value])
 
                 else:
                     string = f"{tok.value} := "
-                    names[tok.value] = Symbol(tok.value, lambda: int(input(string)))
+                    print(string)
+                    names[tok.value] = Symbol(tok.value, lambda: (breakpoint(), int(input(string))), tok)
                     output.append(names[tok.value])
 
     while len(stack) > 0:
-        assert(stack[-1].symbol != "(")
+        if not stack[-1].symbol != "(":
+            raise TokenError("Mismatched Parenthesis", stack[-1].token)
+
         output.append(stack.pop())
 
     return output
@@ -129,7 +143,7 @@ def evaluate_expr(parsed_expr):
                     stack.append(local_names[sym.symbol])
 
                 else:
-                    local_names[sym.symbol] = Symbol(sym.symbol, sym.value())
+                    local_names[sym.symbol] = Symbol(sym.symbol, sym.value(), sym.token)
                     stack.append(local_names[sym.symbol])
 
             case Operator():
