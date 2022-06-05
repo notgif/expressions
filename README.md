@@ -1,3 +1,4 @@
-# Expression Calculator
+# expressions.py
 
-Define an expression and then evaluate it for different values
+A parser for evaluating mathematical expressions
+
